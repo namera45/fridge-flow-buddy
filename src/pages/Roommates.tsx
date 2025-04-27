@@ -1,5 +1,5 @@
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useFridgely } from '@/context/FridgelyContext';
 import { useAuth } from '@/context/AuthContext';
 import AppLayout from '@/components/layout/AppLayout';
@@ -22,44 +22,71 @@ const Roommates = () => {
   const { data: profile } = useQuery({
     queryKey: ['profile'],
     queryFn: async () => {
+      if (!user) return null;
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', user?.id)
+        .eq('id', user.id)
         .single();
       
       if (error) throw error;
       return data;
     },
+    enabled: !!user,
   });
 
   // Fetch roommate connections
-  const { data: roommates } = useQuery({
+  const { data: roommates, isLoading: roommatesLoading } = useQuery({
     queryKey: ['roommates'],
     queryFn: async () => {
+      if (!user) return [];
+      
       const { data, error } = await supabase
         .from('roommate_connections')
         .select(`
-          *,
-          roommate:profiles!roommate_id(
-            username,
-            avatar_url
-          )
+          id,
+          status,
+          roommate_id
         `)
-        .eq('user_id', user?.id);
+        .eq('user_id', user.id);
       
       if (error) throw error;
-      return data;
+      
+      // Now fetch the profile data for each roommate
+      if (data && data.length > 0) {
+        const roommateIds = data.map(connection => connection.roommate_id);
+        
+        const { data: profiles, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, username, avatar_url')
+          .in('id', roommateIds);
+          
+        if (profilesError) throw profilesError;
+        
+        // Join the data
+        return data.map(connection => {
+          const roommateProfile = profiles?.find(p => p.id === connection.roommate_id);
+          return {
+            ...connection,
+            roommate: roommateProfile || { username: 'Unknown', avatar_url: null }
+          };
+        });
+      }
+      
+      return data || [];
     },
+    enabled: !!user,
   });
 
   // Toggle share inventory
   const toggleShareMutation = useMutation({
     mutationFn: async (share: boolean) => {
+      if (!user) throw new Error('User not authenticated');
+      
       const { error } = await supabase
         .from('profiles')
         .update({ share_inventory: share })
-        .eq('id', user?.id);
+        .eq('id', user.id);
       
       if (error) throw error;
     },
@@ -75,6 +102,9 @@ const Roommates = () => {
   // Invite roommate
   const inviteMutation = useMutation({
     mutationFn: async (email: string) => {
+      if (!user) throw new Error('User not authenticated');
+      
+      // First find the user by email (since we're using email as username in profiles)
       const { data: invitedUser, error: userError } = await supabase
         .from('profiles')
         .select('id')
@@ -83,10 +113,21 @@ const Roommates = () => {
       
       if (userError) throw new Error('User not found');
       
+      // Check if connection already exists
+      const { data: existingConnection } = await supabase
+        .from('roommate_connections')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('roommate_id', invitedUser.id)
+        .maybeSingle();
+        
+      if (existingConnection) throw new Error('Invitation already sent');
+      
+      // Create the connection
       const { error } = await supabase
         .from('roommate_connections')
         .insert({
-          user_id: user?.id,
+          user_id: user.id,
           roommate_id: invitedUser.id,
           status: 'pending'
         });
@@ -101,6 +142,13 @@ const Roommates = () => {
         description: "We've sent an invitation to your roommate.",
       });
     },
+    onError: (error) => {
+      toast({
+        title: "Invitation failed",
+        description: error instanceof Error ? error.message : "Failed to send invitation",
+        variant: "destructive",
+      });
+    }
   });
 
   const handleInvite = (e: React.FormEvent) => {
@@ -126,7 +174,7 @@ const Roommates = () => {
               <Label htmlFor="share-inventory">Share inventory</Label>
               <Switch
                 id="share-inventory"
-                checked={profile?.share_inventory}
+                checked={profile?.share_inventory || false}
                 onCheckedChange={(checked) => toggleShareMutation.mutate(checked)}
               />
             </div>
@@ -157,7 +205,7 @@ const Roommates = () => {
                 <h2 className="font-medium mb-4">Active Connections</h2>
                 
                 <div className="space-y-4">
-                  {roommates?.map((connection) => (
+                  {roommates && roommates.map((connection) => (
                     <div key={connection.id} className="flex items-center gap-3 p-3 bg-fridgely-lightGray rounded-lg">
                       <img
                         src={connection.roommate.avatar_url || "https://source.unsplash.com/random/100x100/?person"}
@@ -179,8 +227,12 @@ const Roommates = () => {
                     </div>
                   ))}
 
-                  {(!roommates || roommates.length === 0) && (
+                  {roommates && roommates.length === 0 && (
                     <p className="text-center text-gray-500">No active connections yet</p>
+                  )}
+                  
+                  {roommatesLoading && (
+                    <p className="text-center text-gray-500">Loading connections...</p>
                   )}
                 </div>
               </div>
