@@ -12,6 +12,18 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
+// Define type for roommate data
+interface RoommateConnection {
+  id: string;
+  status: string;
+  roommate_id: string;
+  roommate?: {
+    id: string;
+    username: string;
+    avatar_url: string | null;
+  };
+}
+
 const Roommates = () => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -41,7 +53,7 @@ const Roommates = () => {
     queryFn: async () => {
       if (!user) return [];
       
-      const { data, error } = await supabase
+      const { data: connections, error } = await supabase
         .from('roommate_connections')
         .select(`
           id,
@@ -53,8 +65,8 @@ const Roommates = () => {
       if (error) throw error;
       
       // Now fetch the profile data for each roommate
-      if (data && data.length > 0) {
-        const roommateIds = data.map(connection => connection.roommate_id);
+      if (connections && connections.length > 0) {
+        const roommateIds = connections.map(connection => connection.roommate_id);
         
         const { data: profiles, error: profilesError } = await supabase
           .from('profiles')
@@ -64,16 +76,16 @@ const Roommates = () => {
         if (profilesError) throw profilesError;
         
         // Join the data
-        return data.map(connection => {
+        return connections.map(connection => {
           const roommateProfile = profiles?.find(p => p.id === connection.roommate_id);
           return {
             ...connection,
-            roommate: roommateProfile || { username: 'Unknown', avatar_url: null }
+            roommate: roommateProfile || { id: connection.roommate_id, username: 'Unknown', avatar_url: null }
           };
-        });
+        }) as RoommateConnection[];
       }
       
-      return data || [];
+      return connections as RoommateConnection[] || [];
     },
     enabled: !!user,
   });
@@ -207,14 +219,18 @@ const Roommates = () => {
                 <div className="space-y-4">
                   {roommates && roommates.map((connection) => (
                     <div key={connection.id} className="flex items-center gap-3 p-3 bg-fridgely-lightGray rounded-lg">
-                      <img
-                        src={connection.roommate.avatar_url || "https://source.unsplash.com/random/100x100/?person"}
-                        alt={connection.roommate.username}
-                        className="h-12 w-12 rounded-full object-cover"
-                      />
-                      <div>
-                        <p className="font-medium">{connection.roommate.username}</p>
-                      </div>
+                      {connection.roommate && (
+                        <>
+                          <img
+                            src={connection.roommate.avatar_url || "https://source.unsplash.com/random/100x100/?person"}
+                            alt={connection.roommate.username}
+                            className="h-12 w-12 rounded-full object-cover"
+                          />
+                          <div>
+                            <p className="font-medium">{connection.roommate.username}</p>
+                          </div>
+                        </>
+                      )}
                       <div className="ml-auto">
                         <span className={`text-xs px-2 py-1 rounded-full ${
                           connection.status === 'accepted' 
