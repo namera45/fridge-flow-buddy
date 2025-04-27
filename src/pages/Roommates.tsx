@@ -1,20 +1,115 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useFridgely } from '@/context/FridgelyContext';
+import { useAuth } from '@/context/AuthContext';
 import AppLayout from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Share } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 const Roommates = () => {
-  const { user, roommate, foodItems } = useFridgely();
-  
-  const sharedItems = foodItems.filter(item => item.owner === null);
-  const myItems = foodItems.filter(item => item.owner === 'user1');
-  const roommateItems = foodItems.filter(item => item.owner === 'user2');
-  
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [inviteEmail, setInviteEmail] = React.useState('');
+
+  // Fetch user profile
+  const { data: profile } = useQuery({
+    queryKey: ['profile'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user?.id)
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch roommate connections
+  const { data: roommates } = useQuery({
+    queryKey: ['roommates'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('roommate_connections')
+        .select(`
+          *,
+          roommate:profiles!roommate_id(
+            username,
+            avatar_url
+          )
+        `)
+        .eq('user_id', user?.id);
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Toggle share inventory
+  const toggleShareMutation = useMutation({
+    mutationFn: async (share: boolean) => {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ share_inventory: share })
+        .eq('id', user?.id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
+      toast({
+        title: "Settings updated",
+        description: "Your sharing preferences have been updated.",
+      });
+    },
+  });
+
+  // Invite roommate
+  const inviteMutation = useMutation({
+    mutationFn: async (email: string) => {
+      const { data: invitedUser, error: userError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('username', email)
+        .single();
+      
+      if (userError) throw new Error('User not found');
+      
+      const { error } = await supabase
+        .from('roommate_connections')
+        .insert({
+          user_id: user?.id,
+          roommate_id: invitedUser.id,
+          status: 'pending'
+        });
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['roommates'] });
+      setInviteEmail('');
+      toast({
+        title: "Invitation sent",
+        description: "We've sent an invitation to your roommate.",
+      });
+    },
+  });
+
+  const handleInvite = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (inviteEmail) {
+      inviteMutation.mutate(inviteEmail);
+    }
+  };
+
   return (
     <AppLayout>
       <div className="p-4">
@@ -31,94 +126,66 @@ const Roommates = () => {
               <Label htmlFor="share-inventory">Share inventory</Label>
               <Switch
                 id="share-inventory"
-                checked={user.preferences.shareInventory}
+                checked={profile?.share_inventory}
+                onCheckedChange={(checked) => toggleShareMutation.mutate(checked)}
               />
             </div>
-            
-            {user.preferences.shareInventory && (
-              <div className="mt-4">
-                <p className="text-sm text-gray-500 mb-3">Connected with:</p>
-                
-                <div className="flex items-center gap-3 p-3 bg-fridgely-lightGray rounded-lg">
-                  <img
-                    src={roommate?.avatarUrl || "https://source.unsplash.com/random/100x100/?person"}
-                    alt={roommate?.name || "Roommate"}
-                    className="h-12 w-12 rounded-full object-cover"
-                  />
-                  <div>
-                    <p className="font-medium">{roommate?.name || "Alex"}</p>
-                    <p className="text-sm text-gray-500">{roommate?.email || "alex@example.com"}</p>
-                  </div>
-                  <div className="ml-auto">
-                    <span className="text-xs bg-fridgely-green text-white px-2 py-1 rounded-full">
-                      Active
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
           
-          {user.preferences.shareInventory && (
+          {profile?.share_inventory && (
             <>
               <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
                 <h2 className="font-medium mb-4">Invite New Roommate</h2>
                 
-                <div className="flex gap-2">
-                  <Input placeholder="Email address" />
-                  <Button className="bg-fridgely-green hover:bg-fridgely-green/90 gap-2">
+                <form onSubmit={handleInvite} className="flex gap-2">
+                  <Input 
+                    placeholder="Email address" 
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                  />
+                  <Button 
+                    className="bg-fridgely-green hover:bg-fridgely-green/90 gap-2"
+                    disabled={inviteMutation.isPending}
+                  >
                     <Share size={16} />
-                    Invite
+                    {inviteMutation.isPending ? 'Sending...' : 'Invite'}
                   </Button>
-                </div>
+                </form>
               </div>
               
               <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-                <h2 className="font-medium mb-4">Shared Items</h2>
+                <h2 className="font-medium mb-4">Active Connections</h2>
                 
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3 bg-fridgely-lightGray rounded-lg">
-                    <div>
-                      <p className="font-medium">Shared Items</p>
-                      <p className="text-sm text-gray-500">Accessible to all roommates</p>
+                  {roommates?.map((connection) => (
+                    <div key={connection.id} className="flex items-center gap-3 p-3 bg-fridgely-lightGray rounded-lg">
+                      <img
+                        src={connection.roommate.avatar_url || "https://source.unsplash.com/random/100x100/?person"}
+                        alt={connection.roommate.username}
+                        className="h-12 w-12 rounded-full object-cover"
+                      />
+                      <div>
+                        <p className="font-medium">{connection.roommate.username}</p>
+                      </div>
+                      <div className="ml-auto">
+                        <span className={`text-xs px-2 py-1 rounded-full ${
+                          connection.status === 'accepted' 
+                            ? 'bg-fridgely-green text-white' 
+                            : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {connection.status === 'accepted' ? 'Active' : 'Pending'}
+                        </span>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-2xl font-bold">{sharedItems.length}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center justify-between p-3 bg-fridgely-lightGray rounded-lg">
-                    <div>
-                      <p className="font-medium">My Items</p>
-                      <p className="text-sm text-gray-500">Only you can see these</p>
-                    </div>
-                    <div>
-                      <span className="text-2xl font-bold">{myItems.length}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center justify-between p-3 bg-fridgely-lightGray rounded-lg">
-                    <div>
-                      <p className="font-medium">Alex's Items</p>
-                      <p className="text-sm text-gray-500">Only Alex can manage these</p>
-                    </div>
-                    <div>
-                      <span className="text-2xl font-bold">{roommateItems.length}</span>
-                    </div>
-                  </div>
+                  ))}
+
+                  {(!roommates || roommates.length === 0) && (
+                    <p className="text-center text-gray-500">No active connections yet</p>
+                  )}
                 </div>
               </div>
             </>
           )}
-          
-          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-            <h2 className="font-medium mb-4">Shopping List</h2>
-            
-            <div className="border border-dashed border-gray-300 rounded-lg p-4 text-center">
-              <p className="text-gray-500">Create a shared shopping list</p>
-              <p className="text-sm text-gray-400 mt-1">Coming soon</p>
-            </div>
-          </div>
         </div>
       </div>
     </AppLayout>

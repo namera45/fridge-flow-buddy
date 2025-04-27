@@ -9,7 +9,114 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      food_items: {
+        Row: {
+          category: Database["public"]["Enums"]["food_category"]
+          created_at: string | null
+          expiration_date: string
+          id: string
+          image_url: string | null
+          is_shared: boolean | null
+          location: Database["public"]["Enums"]["fridge_location"]
+          name: string
+          notes: string | null
+          owner_id: string | null
+          quantity: number
+          unit: string
+          updated_at: string | null
+        }
+        Insert: {
+          category: Database["public"]["Enums"]["food_category"]
+          created_at?: string | null
+          expiration_date: string
+          id?: string
+          image_url?: string | null
+          is_shared?: boolean | null
+          location: Database["public"]["Enums"]["fridge_location"]
+          name: string
+          notes?: string | null
+          owner_id?: string | null
+          quantity?: number
+          unit?: string
+          updated_at?: string | null
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["food_category"]
+          created_at?: string | null
+          expiration_date?: string
+          id?: string
+          image_url?: string | null
+          is_shared?: boolean | null
+          location?: Database["public"]["Enums"]["fridge_location"]
+          name?: string
+          notes?: string | null
+          owner_id?: string | null
+          quantity?: number
+          unit?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string | null
+          id: string
+          notification_timing: number | null
+          notifications_enabled: boolean | null
+          share_inventory: boolean | null
+          updated_at: string | null
+          username: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string | null
+          id: string
+          notification_timing?: number | null
+          notifications_enabled?: boolean | null
+          share_inventory?: boolean | null
+          updated_at?: string | null
+          username?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string | null
+          id?: string
+          notification_timing?: number | null
+          notifications_enabled?: boolean | null
+          share_inventory?: boolean | null
+          updated_at?: string | null
+          username?: string | null
+        }
+        Relationships: []
+      }
+      roommate_connections: {
+        Row: {
+          created_at: string | null
+          id: string
+          roommate_id: string | null
+          status: string
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          roommate_id?: string | null
+          status?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          roommate_id?: string | null
+          status?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -18,7 +125,25 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      food_category:
+        | "dairy"
+        | "produce"
+        | "meat"
+        | "seafood"
+        | "grains"
+        | "condiments"
+        | "snacks"
+        | "beverages"
+        | "leftovers"
+        | "other"
+      fridge_location:
+        | "upper shelf"
+        | "middle shelf"
+        | "lower shelf"
+        | "door"
+        | "crisper drawer"
+        | "freezer"
+        | "pantry"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -133,6 +258,28 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      food_category: [
+        "dairy",
+        "produce",
+        "meat",
+        "seafood",
+        "grains",
+        "condiments",
+        "snacks",
+        "beverages",
+        "leftovers",
+        "other",
+      ],
+      fridge_location: [
+        "upper shelf",
+        "middle shelf",
+        "lower shelf",
+        "door",
+        "crisper drawer",
+        "freezer",
+        "pantry",
+      ],
+    },
   },
 } as const
