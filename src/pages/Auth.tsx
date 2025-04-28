@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -10,7 +9,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { Loader2 } from 'lucide-react';
+import { Loader2, UserRound } from 'lucide-react';
 
 // Define schemas for validation
 const authSchema = z.object({
@@ -20,7 +19,7 @@ const authSchema = z.object({
 
 const Auth = () => {
   const [isSignUp, setIsSignUp] = useState(false);
-  const { signIn, signUp, user, loading: authLoading } = useAuth();
+  const { signIn, signUp, signInAsGuest, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -61,6 +60,15 @@ const Auth = () => {
     }
   };
 
+  const handleGuestLogin = async () => {
+    try {
+      await signInAsGuest();
+    } catch (error) {
+      // Error handling is done in AuthContext
+      console.error('Guest login error:', error);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-12">
       <Card className="w-full max-w-md">
@@ -71,7 +79,7 @@ const Auth = () => {
           </CardDescription>
         </CardHeader>
         
-        <CardContent>
+        <CardContent className="space-y-4">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
@@ -122,6 +130,32 @@ const Auth = () => {
               </Button>
             </form>
           </Form>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">
+                Or continue with
+              </span>
+            </div>
+          </div>
+
+          <Button
+            variant="outline"
+            type="button"
+            className="w-full"
+            onClick={handleGuestLogin}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <UserRound className="mr-2 h-4 w-4" />
+            )}
+            Continue as Guest
+          </Button>
         </CardContent>
         
         <CardFooter className="flex flex-col space-y-4">

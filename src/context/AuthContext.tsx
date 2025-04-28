@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -11,6 +10,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  signInAsGuest: () => Promise<void>;
   loading: boolean;
 }
 
@@ -49,6 +49,33 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     return () => subscription.unsubscribe();
   }, [navigate]);
+
+  const signInAsGuest = async () => {
+    try {
+      setLoading(true);
+      const { error, data } = await supabase.auth.signInWithPassword({
+        email: 'guest@fridgely.app',
+        password: 'guestuser123'
+      });
+      
+      if (error) {
+        console.error('Guest sign in error:', error);
+        throw error;
+      }
+      
+      console.log('Guest sign in successful');
+    } catch (error) {
+      console.error('Guest sign in error:', error);
+      toast({
+        title: "Guest sign in failed",
+        description: error instanceof Error ? error.message : "An error occurred during guest sign in",
+        variant: "destructive",
+      });
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const signIn = async (email: string, password: string) => {
     try {
@@ -129,7 +156,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, signIn, signUp, signOut, loading }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      session, 
+      signIn, 
+      signUp, 
+      signOut, 
+      signInAsGuest, 
+      loading 
+    }}>
       {children}
     </AuthContext.Provider>
   );
