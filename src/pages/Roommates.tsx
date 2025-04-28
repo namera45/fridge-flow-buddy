@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useFridgely } from '@/context/FridgelyContext';
 import AppLayout from '@/components/layout/AppLayout';
@@ -23,7 +24,8 @@ interface RoommateConnection {
 }
 
 const Roommates = () => {
-  const { user } = useAuth();
+  // Use a mock user ID since we've removed authentication
+  const mockUserId = '123e4567-e89b-12d3-a456-426614174000';
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [inviteEmail, setInviteEmail] = React.useState('');
@@ -32,25 +34,21 @@ const Roommates = () => {
   const { data: profile } = useQuery({
     queryKey: ['profile'],
     queryFn: async () => {
-      if (!user) return null;
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', user.id)
+        .eq('id', mockUserId)
         .single();
       
       if (error) throw error;
-      return data;
+      return data || { share_inventory: false };
     },
-    enabled: !!user,
   });
 
   // Fetch roommate connections
   const { data: roommates, isLoading: roommatesLoading } = useQuery({
     queryKey: ['roommates'],
     queryFn: async () => {
-      if (!user) return [];
-      
       const { data: connections, error } = await supabase
         .from('roommate_connections')
         .select(`
@@ -58,7 +56,7 @@ const Roommates = () => {
           status,
           roommate_id
         `)
-        .eq('user_id', user.id);
+        .eq('user_id', mockUserId);
       
       if (error) throw error;
       
@@ -85,18 +83,15 @@ const Roommates = () => {
       
       return connections as RoommateConnection[] || [];
     },
-    enabled: !!user,
   });
 
   // Toggle share inventory
   const toggleShareMutation = useMutation({
     mutationFn: async (share: boolean) => {
-      if (!user) throw new Error('User not authenticated');
-      
       const { error } = await supabase
         .from('profiles')
         .update({ share_inventory: share })
-        .eq('id', user.id);
+        .eq('id', mockUserId);
       
       if (error) throw error;
     },
@@ -112,8 +107,6 @@ const Roommates = () => {
   // Invite roommate
   const inviteMutation = useMutation({
     mutationFn: async (email: string) => {
-      if (!user) throw new Error('User not authenticated');
-      
       // First find the user by email (since we're using email as username in profiles)
       const { data: invitedUser, error: userError } = await supabase
         .from('profiles')
@@ -127,7 +120,7 @@ const Roommates = () => {
       const { data: existingConnection } = await supabase
         .from('roommate_connections')
         .select('id')
-        .eq('user_id', user.id)
+        .eq('user_id', mockUserId)
         .eq('roommate_id', invitedUser.id)
         .maybeSingle();
         
@@ -137,7 +130,7 @@ const Roommates = () => {
       const { error } = await supabase
         .from('roommate_connections')
         .insert({
-          user_id: user.id,
+          user_id: mockUserId,
           roommate_id: invitedUser.id,
           status: 'pending'
         });
