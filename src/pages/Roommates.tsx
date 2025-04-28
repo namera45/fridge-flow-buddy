@@ -1,7 +1,5 @@
-
 import React from 'react';
 import { useFridgely } from '@/context/FridgelyContext';
-import { useAuth } from '@/context/AuthContext';
 import AppLayout from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
